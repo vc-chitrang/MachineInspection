@@ -31,49 +31,39 @@ public class AndroidCameraCapture:MonoBehaviour {
     }
 
     void UpdateCaptureDimensions() {
-        // Use full screen dimensions for capture
-        captureWidth = Screen.width;
-        captureHeight = Screen.height;
-
+        // Use portrait resolution
+        if (Screen.height > Screen.width) {
+            captureWidth = 1080;   // Standard portrait width
+            captureHeight = 1920;  // Standard portrait height
+        } else {
+            captureWidth = 1920;   // Landscape
+            captureHeight = 1080;
+        }
         Debug.Log($"Capture dimensions set to: {captureWidth}x{captureHeight}");
     }
 
     IEnumerator InitializeCamera() {
-        // Wait for permissions if needed (only relevant on device)
 #if !UNITY_EDITOR
-        yield return Application.RequestUserAuthorization(UserAuthorization.WebCam);
-        if (!Application.HasUserAuthorization(UserAuthorization.WebCam))
-        {
-            Debug.LogError("Camera permission not granted");
-            yield break;
-        }
+    yield return Application.RequestUserAuthorization(UserAuthorization.WebCam);
+    if (!Application.HasUserAuthorization(UserAuthorization.WebCam))
+    {
+        Debug.LogError("Camera permission not granted");
+        yield break;
+    }
 #endif
 
         WebCamDevice[] devices = WebCamTexture.devices;
         if (devices.Length == 0) {
-            Debug.Log("No camera devices found - using test texture in Editor");
+            Debug.Log("No camera devices found.");
             isCameraAvailable = false;
-
-#if UNITY_EDITOR
-            CreateTestTexture();
-#endif
             yield break;
         }
 
-        // Find appropriate camera
         foreach (var device in devices) {
-#if UNITY_EDITOR
-            // In Editor, use first available camera with screen dimensions
-            backCamera = new WebCamTexture(device.name,captureWidth,captureHeight);
-            break;
-#else
-            if (!device.isFrontFacing)
-            {
-                // On device, use back camera with optimal dimensions
-                backCamera = new WebCamTexture(device.name, captureWidth, captureHeight);
+            if (!device.isFrontFacing) {
+                backCamera = new WebCamTexture(device.name,captureWidth,captureHeight);
                 break;
             }
-#endif
         }
 
         if (backCamera == null) {
@@ -84,6 +74,14 @@ public class AndroidCameraCapture:MonoBehaviour {
         backCamera.Play();
         cameraDisplay.texture = backCamera;
         isCameraAvailable = true;
+
+        // Ensure correct aspect ratio
+        float videoRatio = (float)backCamera.width / backCamera.height;
+        aspectFitter.aspectRatio = videoRatio;
+
+        // Adjust scaling
+        cameraDisplay.rectTransform.sizeDelta = new Vector2(Screen.width,Screen.height);
+        cameraDisplay.rectTransform.localScale = Vector3.one;
     }
 
 #if UNITY_EDITOR
@@ -139,7 +137,7 @@ public class AndroidCameraCapture:MonoBehaviour {
         StartCoroutine(TakeScreenshot());
     }
     [SerializeField] private List<GameObject> uiList;
-    private void SetUI(bool isEnable) { 
+    private void SetUI(bool isEnable) {
         uiList.ForEach(ui => ui.SetActive(isEnable));
     }
     IEnumerator TakeScreenshot() {
@@ -168,7 +166,7 @@ public class AndroidCameraCapture:MonoBehaviour {
 #endif
 
         Destroy(screenshot);
-        SetUI(true);        
+        SetUI(true);
     }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
